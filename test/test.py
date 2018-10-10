@@ -1,15 +1,15 @@
 #!/usr/bin/python
 
 # This script is used to generate luabinding glue codes.
-# Android ndk version must be ndk-r9b.
+# Android ndk version must be ndk-r16.
 
 
-import sys
-import os, os.path
-import shutil
 import ConfigParser
-import subprocess
+import os
+import os.path
 import re
+import subprocess
+import sys
 from contextlib import contextmanager
 
 
@@ -24,6 +24,7 @@ def _check_ndk_root_env():
         sys.exit(1)
 
     return NDK_ROOT
+
 
 def _check_python_bin_env():
     ''' Checking the environment PYTHON_BIN, which will be used for building
@@ -49,16 +50,15 @@ def _pushd(newDir):
     yield
     os.chdir(previousDir)
 
+
 def _run_cmd(command):
     ret = subprocess.call(command, shell=True)
     if ret != 0:
         message = "Error running command"
         raise CmdError(message)
 
-def main():
 
-    cur_platform= '??'
-    llvm_path = '??'
+def main():
     ndk_root = _check_ndk_root_env()
     # del the " in the path
     ndk_root = re.sub(r"\"", "", ndk_root)
@@ -76,22 +76,13 @@ def main():
         sys.exit(1)
 
     if platform == 'win32':
-        x86_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm-3.5/prebuilt', '%s' % cur_platform))
-        if not os.path.exists(x86_llvm_path):
-            x86_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm-3.4/prebuilt', '%s' % cur_platform))
-        if not os.path.exists(x86_llvm_path):
-            x86_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm-3.3/prebuilt', '%s' % cur_platform))
+        x86_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm/prebuilt', '%s' % cur_platform))
     else:
-        x86_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm-3.5/prebuilt', '%s-%s' % (cur_platform, 'x86')))
-        if not os.path.exists(x86_llvm_path):
-            x86_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm-3.4/prebuilt', '%s-%s' % (cur_platform, 'x86')))
-        if not os.path.exists(x86_llvm_path):
-            x86_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm-3.3/prebuilt', '%s-%s' % (cur_platform, 'x86')))
-    x64_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm-3.5/prebuilt', '%s-%s' % (cur_platform, 'x86_64')))
-    if not os.path.exists(x64_llvm_path):
-        x64_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm-3.4/prebuilt', '%s-%s' % (cur_platform, 'x86_64')))
-    if not os.path.exists(x64_llvm_path):
-        x64_llvm_path = os.path.abspath(os.path.join(ndk_root, 'toolchains/llvm-3.3/prebuilt', '%s-%s' % (cur_platform, 'x86_64')))
+        x86_llvm_path = os.path.abspath(
+            os.path.join(ndk_root, 'toolchains/llvm/prebuilt', '%s-%s' % (cur_platform, 'x86')))
+
+    x64_llvm_path = os.path.abspath(
+        os.path.join(ndk_root, 'toolchains/llvm/prebuilt', '%s-%s' % (cur_platform, 'x86_64')))
 
     if os.path.isdir(x86_llvm_path):
         llvm_path = x86_llvm_path
@@ -102,28 +93,26 @@ def main():
         print 'path: %s or path: %s are not valid! ' % (x86_llvm_path, x64_llvm_path)
         sys.exit(1)
 
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    cocos_root = os.path.abspath(project_root)
-    jsb_root = os.path.abspath(os.path.join(project_root, 'cocos/scripting/js-bindings'))
-    cxx_generator_root = os.path.abspath(os.path.join(project_root, 'tools/bindings-generator'))
+    clang_version = '5.0.300080'
+
+    bindings_generator_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    # cocos_root = os.path.abspath(bindings_generator_root)
+    search_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'simple_test'))
+    # jsb_root = os.path.abspath(os.path.join(bindings_generator_root, 'cocos/scripting/js-bindings'))
+    cxx_generator_root = bindings_generator_root
 
     # save config to file
     config = ConfigParser.ConfigParser()
     config.set('DEFAULT', 'androidndkdir', ndk_root)
     config.set('DEFAULT', 'clangllvmdir', llvm_path)
-    config.set('DEFAULT', 'cocosdir', cocos_root)
-    config.set('DEFAULT', 'jsbdir', jsb_root)
+    # config.set('DEFAULT', 'cocosdir', cocos_root)
+    config.set('DEFAULT', 'search_path', search_path)
+    # config.set('DEFAULT', 'jsbdir', jsb_root)
     config.set('DEFAULT', 'cxxgeneratordir', cxx_generator_root)
     config.set('DEFAULT', 'extra_flags', '')
-    
-    if '3.5' in llvm_path:
-        config.set('DEFAULT', 'clang_version', '3.5')
-    elif '3.4' in llvm_path:
-        config.set('DEFAULT', 'clang_version', '3.4')
-    else:
-        config.set('DEFAULT', 'clang_version', '3.3')
+    config.set('DEFAULT', 'clang_version', clang_version)
 
-    # To fix parse error on windows, we must difine __WCHAR_MAX__ and undefine __MINGW32__ .
+    # To fix parse error on windows, we must define __WCHAR_MAX__ and undefine __MINGW32__ .
     if platform == 'win32':
         config.set('DEFAULT', 'extra_flags', '-D__WCHAR_MAX__=0x7fffffff -U__MINGW32__')
 
@@ -131,8 +120,7 @@ def main():
 
     print 'generating userconf.ini...'
     with open(conf_ini_file, 'w') as configfile:
-      config.write(configfile)
-
+        config.write(configfile)
 
     # set proper environment variables
     if 'linux' in platform or platform == 'darwin':
@@ -142,11 +130,10 @@ def main():
         path_env = os.environ['PATH']
         os.putenv('PATH', r'%s;%s\libclang;%s\tools\win32;' % (path_env, cxx_generator_root, cxx_generator_root))
 
-
     try:
 
-        tojs_root = '%s/tools/bindings-generator/test' % project_root
-        output_dir = '%s/tools/bindings-generator/test/simple_test_bindings' % project_root
+        tojs_root = os.path.abspath(os.path.dirname(__file__))
+        output_dir = os.path.join(tojs_root, 'simple_test_bindings')
 
         cmd_args = {
             'test.ini': ('simple_test', 'autogentestbindings')
@@ -157,7 +144,8 @@ def main():
             args = cmd_args[key]
             cfg = '%s/%s' % (tojs_root, key)
             print 'Generating bindings for %s...' % (key[:-4])
-            command = '%s %s %s -s %s -t %s -o %s -n %s' % (python_bin, generator_py, cfg, args[0], target, output_dir, args[1])
+            command = '%s %s %s -s %s -t %s -o %s -n %s' % (
+            python_bin, generator_py, cfg, args[0], target, output_dir, args[1])
             _run_cmd(command)
 
         print '----------------------------------------'
